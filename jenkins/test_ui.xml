@@ -1,0 +1,101 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1385.vb_58b_86ea_fff1">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2151.ve32c9d209a_3f"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2151.ve32c9d209a_3f">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>executor</name>
+          <description>Адрес executor (без http:// и порта)</description>
+          <defaultValue>my-selenoid</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>url</name>
+          <description>Адрес Opencart (для получения ошибок ввести - http://demo.opencart.com )</description>
+          <defaultValue>http://my-opencart:8080</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>number_of_parallel</name>
+          <description>Количество запускаемых параллельно тестов (использовать не больше 3)</description>
+          <defaultValue>1</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>browser</name>
+          <description>Какой браузер и версию используем</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>chrome --bv 120.0</string>
+              <string>chrome --bv 119.0</string>
+              <string>firefox --bv 120.0</string>
+              <string>firefox --bv 119.0</string>
+              <string>safari --bv 15.0</string>
+              <string>safari --bv 14.0</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@3826.v3b_5707fe44da_">
+    <script>pipeline {
+    agent any
+    stages {
+        stage(&apos;Download git repository&apos;) {
+            steps(&apos;One&apos;) {
+                sh &apos;&apos;&apos;#!/usr/bin/env bash
+                      [ -d ui-tests-for-project ] &amp;&amp; cd ui-tests-for-project/ &amp;&amp; git pull https://github.com/FilinAlexS/ui-tests-for-project.git || git clone https://github.com/FilinAlexS/ui-tests-for-project.git
+                &apos;&apos;&apos;
+            }
+        }
+        stage(&apos;Check start Selenoid&apos;) {
+            steps {
+                sh &apos;curl $executor:4444&apos;
+            }
+        }
+         stage(&apos;Precondition Test&apos;) {
+            steps(&apos;Setting env&apos;) {
+                sh &apos;&apos;&apos;#!/usr/bin/env bash
+                      cd ui-tests-for-project/
+                      python3 -m venv venv
+                      source venv/bin/activate
+                      pip install -r requirements.txt&apos;&apos;&apos;
+            }
+        }
+        stage(&apos;Execute tests&apos;) {
+            steps {
+                sh &apos;&apos;&apos;#!/usr/bin/env bash
+                    cd ui-tests-for-project/
+                    ./venv/bin/pytest \
+                    --executor $executor \
+                    --browser $browser \
+                    --url $url \
+                    ./tests \
+                    -n $number_of_parallel&apos;&apos;&apos;
+            }
+            post(&apos;Create report Allure&apos;) {
+                always {
+                    allure includeProperties: false, jdk: &apos;&apos;, reportBuildPolicy: &apos;ALWAYS&apos;, results: [[path: &apos;ui-tests-for-project/allure-results&apos;]]
+                }
+            }
+        }
+    }
+}
+    </script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>
